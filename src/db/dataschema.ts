@@ -4,17 +4,16 @@ import { z } from "zod";
 
 export const dataUsers = z.object({
     username    : z.string().min(8, "Nama wajib diisi!"),
-    email       : z.string().max(50, "Email tidak length terlalu panjang"),
-    password    : z.string().max(50, "password terlalu panjang")
+    email       : z.email(),
+    password    : z.string().min(6, "password harus min 6 karakter")
 });
 
+export const credetials = z.object({
+    email:  z.email(),
+    password: z.string().min(4, "password harus min 6 karakter")
+})
 
 export const dataMovies = z.object({
-	// title varchar(100),
-    // year YEAR ,
-    // rating int,
-    // duration int,    
-    // genres varchar(100)
     title   : z.string().min(1, "Title wajib diisi!"),
     year    : z.int().min(4, "Year wajib diisi!"),
     rating  : z.string().min(1, "Rating Wajib diisi!"),

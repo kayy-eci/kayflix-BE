@@ -1,15 +1,23 @@
-import express, { type Express, type Request, type Response } from 'express';
+import express, { type Express, type NextFunction, type Request, type Response } from 'express';
 import cors from "cors";
 import pool from './db/index..ts';
-import type { ResultSetHeader } from "mysql2/promise";
-import { dataUsers, dataMovies } from './db/dataschema.ts';
-import { number } from 'zod';
+import type { ResultSetHeader, RowDataPacket } from "mysql2/promise";
+import { dataUsers, dataMovies, credetials } from './db/dataschema.ts';
+import jwt from "jsonwebtoken";
+import "dotenv/config";
 
 const app: Express = express();
 const port = 8000;
 
 app.use(cors());
 app.use(express.json());
+
+const SECRET = process.env.JWT_SECRET;
+
+if (!SECRET) {
+  throw new Error("JWT_SECRET belum diisi di .env");
+}
+
 
 app.get("/api/users", async (req: Request, res: Response) => {
     const [users] = await pool.query("select * from users;")
@@ -20,19 +28,68 @@ app.get("/api/users", async (req: Request, res: Response) => {
     })
 })
 
-app.post("/api/login", (req: Request, res: Response) => {
-  res.status(200).json({
-    message: "Berhasil login"
-  });
-})
 
-app.get("/api/movies", async (req: Request, res: Response) => {
+const tokenMiddleWare =  async (req: Request, res: Response, next: NextFunction) => {
+  const authHeader = req.headers.authorization;
+  const token = authHeader && authHeader.split(' ')[1];
+
+
+  if (!token) {
+    return res.status(401).json({
+      message: "Unauthorized. No token provided"
+    })
+  }
+
+  jwt.verify(token, "tokeninimah", (err, user) => {
+    if (err) {
+      return res.status(400).json({
+        message: "invalid token"
+      })
+    }
+
+    next()
+  })
+
+}
+
+
+app.get("/api/movies", tokenMiddleWare ,async  (req: Request, res: Response) => {
   const [movies] = await pool.query("select * from movies;")
 
   res.status(200).json({
     message: "berhasil fetch data movies!",
     data : movies
   })
+})
+
+app.post("/api/auth/login", async (req: Request, res: Response) => {
+  try {
+    const validasiData = credetials.parse(req.body);
+    const { email, password } = validasiData;
+    const [ users ] = await pool.query<RowDataPacket[]>("select * from  users where email = ? limit 1", [email])
+
+    if (users.length === 0) {
+      throw new Error("Data tidak di temukan");
+    }
+
+    if (users[0].password != password) {
+      throw new Error("Email / password salah!");
+    }
+
+    const token = jwt.sign(users[0], "tokeninimah")
+
+    res.status(200).json({
+      message: "login berhasil",
+      token: token
+    })
+
+  } catch (error) {
+    if (error instanceof Error) {
+        res.status(500).json({
+          message: error.message
+        })
+    }
+  }
 })
 
 
@@ -60,7 +117,7 @@ app.post("/api/users", async (req: Request, res: Response) => {
   }
 });
 
-app.post("/api/movies", async (req: Request, res: Response) => {
+app.post("/api/movies", tokenMiddleWare ,async (req: Request, res: Response) => {
   try {
     const validasiData = dataMovies.parse(req.body)
 
@@ -91,7 +148,7 @@ app.post("/api/movies", async (req: Request, res: Response) => {
 });
 
 
-app.put("/api/movies/:id", async (req: Request, res: Response) => {
+app.put("/api/movies/:id", tokenMiddleWare ,async (req: Request, res: Response) => {
   try {
     const id = Number(req.params.id);
 
@@ -123,7 +180,7 @@ app.put("/api/movies/:id", async (req: Request, res: Response) => {
   };
 });
 
-app.put("/api/users/:id",  async (req: Request, res: Response) => {
+app.put("/api/users/:id", tokenMiddleWare , async (req: Request, res: Response) => {
   try {
     const id = Number(req.params.id);
 
@@ -152,7 +209,7 @@ app.put("/api/users/:id",  async (req: Request, res: Response) => {
   }
 })
 
-app.delete("/api/users/:id", async (req, res) => {
+app.delete("/api/users/:id", tokenMiddleWare ,async (req, res) => {
   try {
     const id = Number(req.params.id);
 
@@ -181,7 +238,7 @@ app.delete("/api/users/:id", async (req, res) => {
   }
 });
 
-app.delete("/api/movies/:id", async (req, res) => {
+app.delete("/api/movies/:id", tokenMiddleWare ,async (req, res) => {
   try {
     const id = Number(req.params.id);
 
@@ -210,13 +267,9 @@ app.delete("/api/movies/:id", async (req, res) => {
   }
 });
 
+
+
 app.listen(port, () => {
   console.log(`Example app listening on port ${port}`);
 });
 
-
-	// title varchar(100),
-  //   year YEAR ,
-  //   rating int,
-  //   duration int, 
-  //   genres varchar(100)
