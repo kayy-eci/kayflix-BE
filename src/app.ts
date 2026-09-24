@@ -1,10 +1,13 @@
-import express, { type Express, type NextFunction, type Request, type Response } from 'express';
+import express, { type Express, type Request, type Response } from 'express';
 import cors from "cors";
 import pool from './db/index..ts';
 import type { ResultSetHeader, RowDataPacket } from "mysql2/promise";
 import { dataUsers, dataMovies, credetials } from './db/dataschema.ts';
 import jwt from "jsonwebtoken";
 import "dotenv/config";
+import { randomUUID } from "crypto";
+// import { redis } from './db/redis.ts';
+import { tokenMiddleWare } from "./middleware/authmiddleware.ts";
 
 const app: Express = express();
 const port = 8000;
@@ -19,7 +22,7 @@ if (!SECRET) {
 }
 
 
-app.get("/api/users", async (req: Request, res: Response) => {
+app.get("/api/users", tokenMiddleWare ,async (req: Request, res: Response) => {
     const [users] = await pool.query("select * from users;")
 
     res.status(200).json({
@@ -29,54 +32,36 @@ app.get("/api/users", async (req: Request, res: Response) => {
 })
 
 
-const tokenMiddleWare =  async (req: Request, res: Response, next: NextFunction) => {
-  const authHeader = req.headers.authorization;
-  const token = authHeader && authHeader.split(' ')[1];
-
-
-  if (!token) {
-    return res.status(401).json({
-      message: "Unauthorized. No token provided"
-    })
-  }
-
-  jwt.verify(token, "tokeninimah", (err, user) => {
-    if (err) {
-      return res.status(400).json({
-        message: "invalid token"
-      })
-    }
-
-    next()
-  })
-
-}
-
-
 app.get("/api/movies", tokenMiddleWare ,async  (req: Request, res: Response) => {
   const [movies] = await pool.query("select * from movies;")
 
   res.status(200).json({
     message: "berhasil fetch data movies!",
-    data : movies
+    data : movies 
   })
 })
 
 app.post("/api/auth/login", async (req: Request, res: Response) => {
   try {
     const validasiData = credetials.parse(req.body);
+    if(!validasiData) {
+      return res.status(400).json({
+        message: "Data login tidak valid"
+      })
+    }
     const { email, password } = validasiData;
     const [ users ] = await pool.query<RowDataPacket[]>("select * from  users where email = ? limit 1", [email])
 
-    if (users.length === 0) {
-      throw new Error("Data tidak di temukan");
+    if (users.length === 0 || users[0].password !== password) {
+      return res.status(401).json({
+        message: "Email / Password salah"
+      })
     }
 
-    if (users[0].password != password) {
-      throw new Error("Email / password salah!");
-    }
-
-    const token = jwt.sign(users[0], "tokeninimah")
+    const token = jwt.sign(
+      { id: users[0].id, email: users[0].email, jti: randomUUID()},
+      SECRET,
+      { expiresIn: "15m" })
 
     res.status(200).json({
       message: "login berhasil",
@@ -84,11 +69,10 @@ app.post("/api/auth/login", async (req: Request, res: Response) => {
     })
 
   } catch (error) {
-    if (error instanceof Error) {
-        res.status(500).json({
-          message: error.message
-        })
-    }
+    console.error(error);
+    res.status(500).json({
+      message: "terjadi kesalahan pada server"
+    })
   }
 })
 
@@ -116,6 +100,19 @@ app.post("/api/users", async (req: Request, res: Response) => {
     })
   }
 });
+
+app.post("/api/auth/logout", tokenMiddleWare, async (req: Request, res: Response) => {
+  // const { jti, exp } = res.locals.user;
+  // const sisaDetik = exp - Math.floor(Date.now() / 1000);
+   // if (sisaDetik > 0) {
+   //   await redis.set(`Expired:${jti}`, "1", { EX : sisaDetik});
+   // }
+
+   res.status(200).json({
+    message: "logout berhasil"
+   })
+})
+
 
 app.post("/api/movies", tokenMiddleWare ,async (req: Request, res: Response) => {
   try {
@@ -272,4 +269,3 @@ app.delete("/api/movies/:id", tokenMiddleWare ,async (req, res) => {
 app.listen(port, () => {
   console.log(`Example app listening on port ${port}`);
 });
-
