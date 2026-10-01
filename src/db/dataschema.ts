@@ -1,11 +1,10 @@
-import { title } from "node:process";
 import { z } from "zod";
 
 
 export const dataUsers = z.object({
-    username    : z.string().min(8, "Nama wajib diisi!"),
-    email       : z.email(),
-    password    : z.string().min(6, "password harus min 6 karakter")
+    username    : z.string().min(8, "Nama wajib diisi!").max(50, "Nama maksimal 50 karakter"),
+    email       : z.email().max(50, "Email maksimal 50 karakter"),
+    password    : z.string().min(6, "password harus min 6 karakter").max(100, "Password maksimal 100 karakter")
 });
 
 export const credetials = z.object({
