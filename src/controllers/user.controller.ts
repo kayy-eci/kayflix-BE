@@ -1,7 +1,6 @@
 import type { Request, Response } from "express";
-import type { RowDataPacket } from "mysql2/promise";
-import pool from "./index..ts";
-import { uploadProfileImage } from "../services/cloudinaryservice.ts";
+import { getUserById, updateUserProfileImage } from "../services/user.service.ts";
+import { uploadProfileImage } from "../services/cloudinary.service.ts";
 
 export const uploadProfile = async (
     req: Request,
@@ -28,12 +27,9 @@ export const uploadProfile = async (
             });
         }
 
-        const [users] = await pool.query<RowDataPacket[]>(
-            "SELECT id FROM users WHERE id = ? LIMIT 1",
-            [userId]
-        );
+        const user = await getUserById(userId);
 
-        if (users.length === 0) {
+        if (!user) {
             return res.status(404).json({
                 message: "User tidak ditemukan",
             });
@@ -44,14 +40,7 @@ export const uploadProfile = async (
             userId
         );
 
-        await pool.query(
-            "UPDATE users SET profile_image_url = ?, profile_image_public_id = ? WHERE id = ?",
-            [
-                result.secure_url,
-                result.public_id,
-                userId,
-            ]
-        );
+        await updateUserProfileImage(userId, result.secure_url, result.public_id);
 
         return res.status(200).json({
             message: "Profile image berhasil diupload",
