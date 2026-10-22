@@ -1,6 +1,8 @@
 import { Router, type Request, type Response } from "express";
+import { ZodError } from "zod";
 import { dataMovies } from "../models/schema.ts";
 import { tokenMiddleWare } from "../middleware/auth.middleware.ts";
+import { adminMiddleware } from "../middleware/admin.middleware.ts";
 import * as movieService from "../services/movie.service.ts";
 
 const router = Router();
@@ -14,7 +16,7 @@ router.get("/movies", tokenMiddleWare, async (req: Request, res: Response) => {
   })
 });
 
-router.post("/movies", tokenMiddleWare, async (req: Request, res: Response) => {
+router.post("/movies", tokenMiddleWare, adminMiddleware, async (req: Request, res: Response) => {
   try {
     const validasiData = dataMovies.parse(req.body)
 
@@ -36,15 +38,28 @@ router.post("/movies", tokenMiddleWare, async (req: Request, res: Response) => {
   } catch (error) {
     console.error(error);
 
+    if (error instanceof ZodError) {
+      return res.status(400).json({
+        message: "Data movies tidak valid",
+        errors: error.issues
+      });
+    }
+
     res.status(500).json({
       message: "Failed to add movie"
     })
   }
 });
 
-router.put("/movies/:id", tokenMiddleWare, async (req: Request, res: Response) => {
+router.put("/movies/:id", tokenMiddleWare, adminMiddleware, async (req: Request, res: Response) => {
   try {
     const id = Number(req.params.id);
+
+    if (!Number.isSafeInteger(id) || id <= 0) {
+      return res.status(400).json({
+        message: "ID movie tidak valid"
+      });
+    }
 
     const validasiData = dataMovies.parse(req.body);
 
@@ -52,11 +67,9 @@ router.put("/movies/:id", tokenMiddleWare, async (req: Request, res: Response) =
 
     const result = await movieService.updateMovie(id, title, year, rating, duration, genres);
 
-    const updateMovies = result as any;
-
-    if (updateMovies.affectedRows == 0) {
+    if (result.affectedRows == 0) {
       res.status(404).json({
-        message : "error"
+        message : "movie tidak ditemukan"
       });
       return;
     }
@@ -65,21 +78,28 @@ router.put("/movies/:id", tokenMiddleWare, async (req: Request, res: Response) =
       message: "Data movies berhasil diupdate"
   });
   } catch (error){
-    res.status(400).json({
-      message: "Data movies tidak valid"
+    console.error(error);
+
+    if (error instanceof ZodError) {
+      return res.status(400).json({
+        message: "Data movies tidak valid",
+        errors: error.issues
+      });
+    }
+
+    res.status(500).json({
+      message: "Gagal mengupdate movie"
     });
   };
 });
 
-router.delete("/movies/:id", tokenMiddleWare, async (req, res) => {
+router.delete("/movies/:id", tokenMiddleWare, adminMiddleware, async (req, res) => {
   try {
     const id = Number(req.params.id);
 
     const result = await movieService.deleteMovie(id);
 
-    const deleteMovies = result as any;
-
-    if (deleteMovies.affectedRows === 0) {
+    if (result.affectedRows === 0) {
       res.status(404).json({
         message: "movie tidak ditemukan",
       });
@@ -91,8 +111,9 @@ router.delete("/movies/:id", tokenMiddleWare, async (req, res) => {
       message: "movie berhasil dihapus",
     });
   } catch (error) {
+    console.error(error);
     res.status(500).json({
-      message: "movie menghapus user",
+      message: "Gagal menghapus movie",
     });
   }
 });

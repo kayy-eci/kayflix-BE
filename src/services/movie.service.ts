@@ -17,13 +17,13 @@ export const createMovie = async (title: string, year: number, rating: string, d
 export const updateMovie = async (id: number, title: string, year: number, rating: string, duration: string, genres: string) => {
   const [result] = await pool.query<ResultSetHeader>(
     "UPDATE movies SET title = ?, year = ?, rating = ?, duration = ?, genres = ? WHERE id = ?",
-    [id, title, year, rating, duration, genres]
+    [title, year, rating, duration, genres, id]
   );
   return result;
 };
 
 export const deleteMovie = async (id: number) => {
-  const [result] = await pool.query(
+  const [result] = await pool.query<ResultSetHeader>(
     "DELETE FROM movies WHERE id = ?",
     [id]
   );

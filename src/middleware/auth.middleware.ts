@@ -1,7 +1,8 @@
 
 import type { NextFunction, Request, Response } from "express";
-import jwt, { type JwtPayload } from "jsonwebtoken";
+import jwt from "jsonwebtoken";
 import "dotenv/config";
+import type { UserTokenPayload } from "../types/express.d.ts";
 
 const SECRET = process.env.JWT_SECRET;
 
@@ -18,7 +19,13 @@ export const tokenMiddleWare =  async (req: Request, res: Response, next: NextFu
     })
   }
  try {
-    const payload = jwt.verify(token, SECRET) as JwtPayload;
+    const payload = jwt.verify(token, SECRET) as UserTokenPayload;
+
+    if (!payload.id) {
+      return res.status(401).json({
+        message: "Invalid token payload"
+      });
+    }
     
     // const isBlacklisted = await redis.get(`blacklist:${payload.jti}`);
     // if (isBlacklisted) {

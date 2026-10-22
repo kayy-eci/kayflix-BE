@@ -118,7 +118,7 @@ router.post("/auth/login", async (req: Request, res: Response) => {
     }
 
     const token = jwt.sign(
-      { id: user.id, email: user.email, jti: randomUUID()},
+      { id: user.id, email: user.email, role: user.role, jti: randomUUID()},
       SECRET,
       { expiresIn: "1h" })
 
